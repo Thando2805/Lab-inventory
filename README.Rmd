@@ -115,20 +115,6 @@ The application is deployed on **Render**.
 3. Update quantities as items are used or restocked.
 4. Monitor stock levels and reorder statuses from the dashboard.
 
-## Contributing
-
-Contributions are welcome.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -m "Add your feature"`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
-
-## License
-
-Add your license here (for example, MIT).
-
 ## Author
 
 **Tshaka Thando Divine**
