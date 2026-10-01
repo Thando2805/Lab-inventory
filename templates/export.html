@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Export — Lab Inventory{% endblock %}
+
+{% block breadcrumb %}
+<span class="sep">/</span>
+<span>Export</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Export Inventory</h1>
+        <div class="page-sub">Two formats available. Both include calculated fields.</div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px;" class="two-col">
+    <div class="card card-pad">
+        <h3 class="section-title">Native Export</h3>
+        <p class="muted" style="font-size:13.5px;">
+            One Excel workbook with a sheet per category (Apparatus, Equipment,
+            Reagent, Chemical, Consumable) plus a full Transactions sheet.
+            Best for your own analysis and backups.
+        </p>
+        <a href="{{ url_for('export_native_route') }}" class="btn btn-primary">Download Native (.xlsx)</a>
+    </div>
+
+    <div class="card card-pad">
+        <h3 class="section-title">SOP-Compatible Export</h3>
+        <p class="muted" style="font-size:13.5px;">
+            Single workbook with two sheets — <span class="mono">Master Inventory</span>
+            and <span class="mono">Stock Movements</span> — matching the controlled
+            workbook column layout exactly. Drop it straight back into your regulated file.
+        </p>
+        <a href="{{ url_for('export_sop_route') }}" class="btn btn-primary">Download SOP (.xlsx)</a>
+    </div>
+</div>
+{% endblock %}

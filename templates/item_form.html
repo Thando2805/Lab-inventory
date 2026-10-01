@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if item else 'New' }} {{ category }} — Lab Inventory{% endblock %}
+
+{% block breadcrumb %}
+<span class="sep">/</span>
+<a href="{{ url_for('section', category=category) }}">{{ category }}</a>
+<span class="sep">/</span>
+<span>{{ 'Edit' if item else 'New Item' }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">{{ 'Edit Item' if item else 'New ' + category }}</h1>
+        <div class="page-sub">
+            {% if item %}{{ item.inventory_id }} — {{ item.name }}
+            {% else %}Fill in the details below{% endif %}
+        </div>
+    </div>
+</div>
+
+<form method="post" class="card card-pad" style="max-width:900px;">
+    {{ form.hidden_tag() }}
+
+    <h3 class="section-title">Identification</h3>
+    <div class="form-grid">
+        <div class="field">
+            <label>{{ form.name.label.text }}</label>
+            {{ form.name() }}
+        </div>
+        <div class="field">
+            <label>{{ form.inventory_id.label.text }}</label>
+            {{ form.inventory_id(placeholder="Auto-generated if blank") }}
+            <div class="field-help">Leave blank to auto-generate (e.g. APP-001)</div>
+        </div>
+        <div class="field">
+            <label>{{ form.area_id.label.text }}</label>
+            {{ form.area_id() }}
+        </div>
+        <div class="field">
+            <label>{{ form.manufacturer.label.text }}</label>
+            {{ form.manufacturer() }}
+        </div>
+        <div class="field">
+            <label>{{ form.lot_serial.label.text }}</label>
+            {{ form.lot_serial() }}
+        </div>
+        <div class="field">
+            <label>{{ form.location.label.text }}</label>
+            {{ form.location() }}
+        </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h3 class="section-title">Stock and Levels</h3>
+    <div class="form-grid-3">
+        <div class="field">
+            <label>{{ form.opening_qty.label.text }}</label>
+            {{ form.opening_qty() }}
+        </div>
+        <div class="field">
+            <label>{{ form.unit.label.text }}</label>
+            {{ form.unit() }}
+        </div>
+        <div class="field">
+            <label>{{ form.unit_value.label.text }}</label>
+            {{ form.unit_value() }}
+        </div>
+        <div class="field">
+            <label>{{ form.min_level.label.text }}</label>
+            {{ form.min_level() }}
+        </div>
+        <div class="field">
+            <label>{{ form.reorder_level.label.text }}</label>
+            {{ form.reorder_level() }}
+        </div>
+        <div class="field">
+            <label style="display:flex;align-items:center;gap:6px;margin-top:22px;">
+                {{ form.critical() }} Critical item
+            </label>
+        </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h3 class="section-title">Dates and Status</h3>
+    <div class="form-grid-3">
+        <div class="field">
+            <label>{{ form.received_date.label.text }}</label>
+            {{ form.received_date() }}
+        </div>
+        <div class="field">
+            <label>{{ form.expiry_date.label.text }}</label>
+            {{ form.expiry_date() }}
+        </div>
+        <div class="field">
+            <label>{{ form.service_due.label.text }}</label>
+            {{ form.service_due() }}
+        </div>
+        <div class="field">
+            <label>{{ form.condition_status.label.text }}</label>
+            {{ form.condition_status() }}
+        </div>
+        <div class="field">
+            <label>{{ form.responsible.label.text }}</label>
+            {{ form.responsible() }}
+        </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+        <label>{{ form.notes.label.text }}</label>
+        {{ form.notes(rows=3) }}
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+            {{ 'Save Changes' if item else 'Create Item' }}
+        </button>
+        <a href="{{ url_for('section', category=category) }}" class="btn btn-ghost">Cancel</a>
+    </div>
+</form>
+{% endblock %}

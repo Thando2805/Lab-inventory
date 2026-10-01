@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Transactions — Lab Inventory{% endblock %}
+
+{% block breadcrumb %}
+<span class="sep">/</span>
+<span>Transactions</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Transaction Log</h1>
+        <div class="page-sub">Most recent 300 movements. Append-only, never deleted.</div>
+    </div>
+</div>
+
+<div class="table-wrap">
+    {% if txs %}
+    <table class="data">
+        <thead>
+            <tr>
+                <th style="width:110px;">Date</th>
+                <th>Item</th>
+                <th style="width:130px;">Type</th>
+                <th class="num" style="width:80px;">In</th>
+                <th class="num" style="width:80px;">Out</th>
+                <th style="width:110px;">User</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in txs %}
+            <tr>
+                <td>{{ t.trans_date }}</td>
+                <td>
+                    <a href="{{ url_for('item_detail', item_id=t.item_id) }}" class="link">
+                        {{ t.item.name }}
+                    </a>
+                </td>
+                <td>{{ t.trans_type }}</td>
+                <td class="num">{{ t.qty_in or '' }}</td>
+                <td class="num">{{ t.qty_out or '' }}</td>
+                <td>{{ t.user.username if t.user else '—' }}</td>
+                <td class="muted" style="font-size:12.5px;">{{ t.reference_notes or '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No transactions recorded yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

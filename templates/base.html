@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Lab Inventory{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+
+<body>
+
+    {% if current_user.is_authenticated %}
+    <div class="app">
+
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-mark">LI</div>
+                <div class="brand-text">Lab Inventory</div>
+            </div>
+
+            <div class="nav-section">Overview</div>
+            <a href="{{ url_for('index') }}" class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+                Dashboard
+            </a>
+
+            <div class="nav-section" style="margin-top:10px;">Sections</div>
+            {% for c in CATEGORIES %}
+            <a href="{{ url_for('section', category=c) }}"
+                class="nav-item {% if request.endpoint == 'section' and request.view_args.category == c %}active{% endif %}">
+                {{ c }}
+            </a>
+            {% endfor %}
+
+            <div class="nav-section" style="margin-top:10px;">Records</div>
+            <a href="{{ url_for('archived') }}"
+                class="nav-item {% if request.endpoint == 'archived' %}active{% endif %}">
+                Archived
+            </a>
+            <a href="{{ url_for('transactions') }}"
+                class="nav-item {% if request.endpoint == 'transactions' %}active{% endif %}">
+                Transactions
+            </a>
+            {% if current_user.role in ['admin', 'technician'] %}
+            <a href="{{ url_for('import_page') }}"
+                class="nav-item {% if request.endpoint == 'import_page' %}active{% endif %}">
+                Import
+            </a>
+            {% endif %}
+            <a href="{{ url_for('export_page') }}"
+                class="nav-item {% if request.endpoint == 'export_page' %}active{% endif %}">
+                Export
+            </a>
+
+            <div class="sidebar-footer">
+                <div class="user-name">{{ current_user.full_name or current_user.username }}</div>
+                <div>@{{ current_user.username }}</div>
+                <div class="user-role">{{ current_user.role }}</div>
+                <a href="{{ url_for('auth.logout') }}" class="signout">Sign out</a>
+            </div>
+        </aside>
+
+        <div class="main">
+
+            <header class="topbar">
+                <div class="breadcrumb">
+                    <a href="{{ url_for('index') }}">Home</a>
+                    {% block breadcrumb %}{% endblock %}
+                </div>
+                <div class="topbar-spacer"></div>
+                <div class="topbar-search">
+                    <form method="get" action="{{ url_for('section', category='Apparatus') }}">
+                        <input type="text" name="q" placeholder="Search inventory..."
+                            value="{{ request.args.get('q', '') }}">
+                    </form>
+                </div>
+            </header>
+
+            <div class="content">
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="flash-stack">
+                    {% for cat, msg in messages %}
+                    <div
+                        class="flash flash-{{ 'error' if cat == 'error' else 'warning' if cat == 'warning' else 'success' }}">
+                        {{ msg }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    {% block content_anon %}{% endblock %}
+    {% endif %}
+
+    <script>
+        document.addEventListener("submit", function (e) {
+            const msg = e.target.getAttribute("data-confirm");
+            if (msg && !window.confirm(msg)) e.preventDefault();
+        });
+    </script>
+</body>
+
+</html>

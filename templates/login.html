@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Lab Inventory{% endblock %}
+
+{% block content_anon %}
+<div class="login-wrap">
+    <div class="login-card">
+        <div class="login-logo">LI</div>
+        <h1>Sign in</h1>
+        <p class="sub">Laboratory Inventory Management</p>
+
+        <form method="post" style="display:flex;flex-direction:column;gap:14px;">
+            {{ form.hidden_tag() }}
+
+            <div class="field">
+                <label>Username</label>
+                {{ form.username(class="", autofocus=true) }}
+            </div>
+
+            <div class="field">
+                <label>Password</label>
+                {{ form.password(class="") }}
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;">
+                Sign in
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

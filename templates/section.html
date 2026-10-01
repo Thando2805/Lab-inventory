@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ category }} — Lab Inventory{% endblock %}
+
+{% block breadcrumb %}
+<span class="sep">/</span>
+<a href="{{ url_for('section', category=category) }}">{{ category }}</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">{{ category }}</h1>
+        <div class="page-sub">{{ counts[show] }} items in this view</div>
+    </div>
+    {% if current_user.role in ['admin', 'technician'] %}
+    <a href="{{ url_for('item_new', category=category) }}" class="btn btn-primary">
+        Add Item
+    </a>
+    {% endif %}
+</div>
+
+<!-- Filters -->
+<form method="get" class="filter-bar">
+    <input type="hidden" name="show" value="{{ show }}">
+
+    <input type="text" name="q" value="{{ q }}" placeholder="Search name, ID, lot, location" class="input input-search">
+
+    <select name="area" class="select">
+        <option value="">All areas</option>
+        {% for a in areas %}
+        <option value="{{ a.id }}" {% if area_id==a.id %}selected{% endif %}>{{ a.name }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit" class="btn btn-secondary">Apply</button>
+
+    {% if q or area_id %}
+    <a href="{{ url_for('section', category=category, show=show) }}" class="btn btn-ghost">Reset</a>
+    {% endif %}
+</form>
+
+<!-- Tabs -->
+<div class="tabs">
+    {% for key, label in [('active','In Stock'), ('low','Low'), ('out','Out of Stock'), ('all','All')] %}
+    <a class="tab {% if show == key %}active{% endif %}"
+        href="{{ url_for('section', category=category, show=key, area=area_id, q=q) }}">
+        {{ label }}<span class="count">{{ counts[key] }}</span>
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+    {% if items %}
+    <table class="data">
+        <thead>
+            <tr>
+                <th style="width:120px;">ID</th>
+                <th>Item</th>
+                <th style="width:180px;">Area</th>
+                <th class="num" style="width:90px;">Qty</th>
+                <th style="width:70px;">Unit</th>
+                <th style="width:130px;">Location</th>
+                <th style="width:120px;">Stock</th>
+                <th style="width:120px;">Expiry</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+            <tr>
+                <td class="mono" style="color:var(--muted);font-size:12px;">{{ it.inventory_id }}</td>
+                <td>
+                    <a href="{{ url_for('item_detail', item_id=it.id) }}" class="link">
+                        {{ it.name }}
+                    </a>
+                </td>
+                <td>{{ it.area.name if it.area else '—' }}</td>
+                <td class="num">{{ it.current_qty }}</td>
+                <td>{{ it.unit }}</td>
+                <td>{{ it.location or '—' }}</td>
+                <td>
+                    {% set s = it.stock_status %}
+                    <span class="pill
+                {% if s == 'OK' %}pill-ok
+                {% elif s == 'REORDER' %}pill-reorder
+                {% elif s == 'BELOW MIN' %}pill-below
+                {% elif s == 'CRITICAL' %}pill-crit
+                {% else %}pill-neutral{% endif %}">
+                        {{ s }}
+                    </span>
+                </td>
+                <td>
+                    {% set e = it.expiry_status %}
+                    <span class="pill
+                {% if e == 'OK' %}pill-ok
+                {% elif e == 'NEAR EXPIRY' %}pill-reorder
+                {% elif e == 'EXPIRED' %}pill-crit
+                {% else %}pill-neutral{% endif %}">
+                        {{ e }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No items match this view.</div>
+    {% endif %}
+</div>
+{% endblock %}

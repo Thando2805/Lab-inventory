@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Archived — Lab Inventory{% endblock %}
+
+{% block breadcrumb %}
+<span class="sep">/</span>
+<span>Archived</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Archived</h1>
+        <div class="page-sub">
+            {{ items|length }} items at zero stock. These remain in the system and reappear in their section when stock
+            is added.
+        </div>
+    </div>
+</div>
+
+<div class="table-wrap">
+    {% if items %}
+    <table class="data">
+        <thead>
+            <tr>
+                <th style="width:120px;">ID</th>
+                <th>Item</th>
+                <th style="width:140px;">Category</th>
+                <th style="width:180px;">Area</th>
+                <th class="num" style="width:90px;">Qty</th>
+                <th style="width:70px;">Unit</th>
+                <th style="width:100px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+            <tr>
+                <td class="mono" style="color:var(--muted);font-size:12px;">{{ it.inventory_id }}</td>
+                <td>{{ it.name }}</td>
+                <td>{{ it.category }}</td>
+                <td>{{ it.area.name if it.area else '—' }}</td>
+                <td class="num">{{ it.current_qty }}</td>
+                <td>{{ it.unit }}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('item_detail', item_id=it.id) }}" class="btn btn-ghost btn-sm">
+                        Open
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty">Nothing archived. All items have stock.</div>
+    {% endif %}
+</div>
+{% endblock %}

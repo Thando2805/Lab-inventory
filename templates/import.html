@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Import — Lab Inventory{% endblock %}
+
+{% block breadcrumb %}
+<span class="sep">/</span>
+<span>Import</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Import Inventory</h1>
+        <div class="page-sub">Upload an Excel or CSV file. The importer detects the layout automatically.</div>
+    </div>
+</div>
+
+<div class="card card-pad" style="max-width:760px;">
+    <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="field">
+            <label>File (.xlsx, .xls, or .csv)</label>
+            <input type="file" name="file" accept=".xlsx,.xls,.csv" required>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Upload &amp; Import</button>
+        </div>
+    </form>
+
+    <div class="divider"></div>
+
+    <h3 class="section-title">How detection works</h3>
+    <table class="data" style="border:none;">
+        <tbody>
+            <tr>
+                <td style="width:180px;"><strong>SOP shape</strong></td>
+                <td>Detected when columns include <span class="mono">Inventory ID</span>,
+                    <span class="mono">Opening Qty</span>, and <span class="mono">Min Level</span>.
+                    Mapped 1:1 to the Master Inventory.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>Snapshot shape</strong></td>
+                <td>Detected when columns include <span class="mono">Item Description</span>,
+                    <span class="mono">Quantity</span>, and <span class="mono">Units</span>.
+                    Each sheet becomes an Area; categories map to the SOP list
+                    (Glassware &rarr; Apparatus, Media &rarr; Reagent, etc.).
+                </td>
+            </tr>
+            <tr>
+                <td><strong>Meta sheets</strong></td>
+                <td>Instructions, Dashboard, Lists, Monthly Count, Discrepancy CAPA and
+                    Disposal Register are skipped automatically.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+{% if summary %}
+<div class="card card-pad" style="margin-top:16px;">
+    <h3 class="section-title">Import Summary</h3>
+    <p class="muted" style="margin-top:0;">
+        Detected shape: <strong>{{ summary.shape or 'mixed' }}</strong>.
+        Total added: <strong>{{ summary.totals.added }}</strong>,
+        updated: <strong>{{ summary.totals.updated }}</strong>,
+        skipped: <strong>{{ summary.totals.skipped }}</strong>.
+    </p>
+
+    <table class="data" style="border:none;margin-top:12px;">
+        <thead>
+            <tr>
+                <th>Sheet / File</th>
+                <th class="num">Added</th>
+                <th class="num">Updated</th>
+                <th class="num">Skipped</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in summary.sheets %}
+            <tr>
+                <td>{{ s.name }}</td>
+                <td class="num">{{ s.added }}</td>
+                <td class="num">{{ s.updated }}</td>
+                <td class="num">{{ s.skipped }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="form-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-primary">Go to Dashboard</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

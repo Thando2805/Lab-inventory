@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Lab Inventory{% endblock %}
+
+{% block breadcrumb %}
+<span class="sep">/</span>
+<span>Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Dashboard</h1>
+        <div class="page-sub">Live summary from the Master Inventory</div>
+    </div>
+</div>
+
+<!-- KPIs row 1 -->
+<div class="kpi-grid">
+    <div class="kpi">
+        <div class="kpi-label">Total Inventory Lines</div>
+        <div class="kpi-value">{{ total_lines }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Reorder / Below Min</div>
+        <div class="kpi-value warn">{{ reorder + below_min }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Critical Stock</div>
+        <div class="kpi-value danger">{{ critical }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Near Expiry (≤90 days)</div>
+        <div class="kpi-value warn">{{ near_expiry }}</div>
+    </div>
+</div>
+
+<!-- KPIs row 2 -->
+<div class="kpi-grid">
+    <div class="kpi">
+        <div class="kpi-label">Expired</div>
+        <div class="kpi-value danger">{{ expired }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Service Due / Overdue</div>
+        <div class="kpi-value">{{ service_due_30 + service_overdue }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Total Stock Value</div>
+        <div class="kpi-value">${{ "{:,.2f}".format(total_value) }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Items OK</div>
+        <div class="kpi-value">{{ ok }}</div>
+    </div>
+</div>
+
+<!-- Sections -->
+<h2 class="section-title">Sections</h2>
+<div class="tiles">
+    {% for c in categories %}
+    <a href="{{ url_for('section', category=c) }}" class="tile">
+        <div class="tile-label">{{ c }}</div>
+        <div class="tile-value">{{ cat_counts[c] }}</div>
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Breakdowns -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="two-col">
+    <div class="card card-pad">
+        <h3 class="section-title">Stock Status Breakdown</h3>
+        <table class="data" style="border:none;">
+            <tbody>
+                <tr>
+                    <td>CRITICAL</td>
+                    <td class="num">{{ critical }}</td>
+                </tr>
+                <tr>
+                    <td>BELOW MIN</td>
+                    <td class="num">{{ below_min }}</td>
+                </tr>
+                <tr>
+                    <td>REORDER</td>
+                    <td class="num">{{ reorder }}</td>
+                </tr>
+                <tr>
+                    <td>OK</td>
+                    <td class="num">{{ ok }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card card-pad">
+        <h3 class="section-title">Category Breakdown</h3>
+        <table class="data" style="border:none;">
+            <tbody>
+                {% for c in categories %}
+                <tr>
+                    <td>{{ c }}</td>
+                    <td class="num">{{ cat_counts[c] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
