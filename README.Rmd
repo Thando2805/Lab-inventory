@@ -1,120 +1,82 @@
 # Lab Inventory Management System
 
-A web-based laboratory inventory management application built with Flask, SQLAlchemy, and Bootstrap. Designed to track laboratory equipment, chemical reagents, stock levels, and user activity.
+A lightweight, production-ready web application for tracking laboratory
+inventory — apparatus, equipment, reagents, chemicals, and consumables —
+with an append-only audit trail, SOP-aligned stock status, expiry and
+service tracking, and Excel import/export.
+
+Built for laboratories that need something better than a spreadsheet but
+don't need the overhead of a full LIMS.
+
+---
 
 ## Features
 
-- **User Authentication:** Secure user registration, login, session management, and role-based access.
-- **Inventory Management:** Add, update, view, and organize laboratory reagents, instruments, and consumables.
-- **Stock Monitoring:** Real-time tracking of item quantities and reorder statuses.
-- **Flexible Database Backend:** Configured for local development with SQLite and production deployment with PostgreSQL.
+- **Five SOP sections** — Apparatus, Equipment, Reagent, Chemical, Consumable
+- **Master Inventory fields** — Inventory ID, description, manufacturer,
+  lot/serial, opening qty, unit, location, received date, expiry date,
+  min/reorder levels, critical flag, condition, service due, unit value,
+  responsible person, notes
+- **Auto-calculated fields** — Qty In, Qty Out, Current Qty, Stock Status,
+  Days to Expiry, Expiry Status, Service Status, Current Value
+- **Append-only transaction log** — every RECEIVE, ISSUE / USE, TRANSFER,
+  RETURN, QUARANTINE, RELEASE, DISPOSE, and ADJUSTMENT is recorded with
+  timestamp, user, and reference. Transactions are never edited or deleted.
+- **Auto-archive** — items at zero stock are hidden from section lists but
+  preserved in the system, and reappear automatically when new stock arrives
+- **Area-based filtering** — Biochemical Analysis, Microbio 2, Preparation
+  Lab, Preparation Room, Microbiology Lab Equipment, Microbiology Lab
+- **Import** — upload an Excel or CSV file. Two shapes auto-detected:
+  - SOP shape (Inventory ID + Opening Qty + Min Level)
+  - Snapshot shape (Item Description + Quantity + Units) — sheet names
+    become areas, categories map to the SOP list
+- **Export** — two formats:
+  - Native (one sheet per category + Transactions)
+  - SOP-compatible (Master Inventory + Stock Movements matching the
+    controlled workbook column layout)
+- **Multi-user** — viewer / technician / admin roles, Argon2-hashed
+  passwords, CSRF-protected forms, rate-limited login
+- **Audit log** — every write is recorded with user, IP, action, and
+  timestamp
+
+---
 
 ## Tech Stack
 
-- **Backend:** Python, Flask, Flask-SQLAlchemy, Flask-WTF, WTForms
-- **Frontend:** HTML5, CSS3, Jinja2 Templates, Bootstrap
-- **Database:** SQLite (Local) / PostgreSQL (Production via Neon)
-- **Deployment:** Render
+| Layer | Choice |
+|---|---|
+| Language | Python 3.12 |
+| Framework | Flask 3 |
+| ORM | SQLAlchemy 2 |
+| Dev database | SQLite |
+| Production database | PostgreSQL (Neon free tier) |
+| Auth | Flask-Login + Argon2 |
+| Forms | Flask-WTF (CSRF protection) |
+| Excel | pandas + openpyxl |
+| Server | Gunicorn |
+| Hosting | Render (free tier) |
 
-## Repository Structure
+---
 
-```text
-lab-inventory/
-├── app.py              # Main Flask application entry point & route handlers
-├── auth.py             # Authentication logic (login, logout, registration)
-├── config.py           # Application configuration settings
-├── forms.py            # Web input forms and validation rules
-├── models.py           # Database models and schema definitions
-├── requirements.txt    # Python package dependencies
-├── .env.example        # Template for local environment variables
-├── static/             # Static assets (CSS, JavaScript, images)
-└── templates/          # Jinja2 HTML templates
-    ├── base.html       # Base layout template
-    └── login.html      # Login view
-```
-
-## Getting Started
+## Local Development
 
 ### Prerequisites
 
-- Python 3.9 or higher
-- pip
+- Python 3.12
 - Git
 
-### Installation
-
-1. **Clone the repository**
+### Setup
 
 ```bash
-   git clone https://github.com/<your-username>/lab-inventory.git
-   cd lab-inventory
-```
+git clone https://github.com/YOUR-USERNAME/lab-inventory.git
+cd lab-inventory
 
-2. **Create and activate a virtual environment**
+python -m venv .venv
 
-```bash
-   python -m venv venv
+# Windows
+.venv\Scripts\Activate.ps1
 
-   # Windows
-   venv\Scripts\activate
+# macOS / Linux
+source .venv/bin/activate
 
-   # macOS / Linux
-   source venv/bin/activate
-```
-
-3. **Install dependencies**
-
-```bash
-   pip install -r requirements.txt
-```
-
-4. **Set up environment variables**
-
-   Copy the example file and edit the values:
-
-```bash
-   cp .env.example .env
-```
-
-   Typical variables:
-
-   | Variable       | Description                                                  |
-   |----------------|--------------------------------------------------------------|
-   | `SECRET_KEY`   | Secret key used for sessions and CSRF protection             |
-   | `DATABASE_URL` | Database connection string (leave unset to use local SQLite) |
-
-5. **Run the application**
-
-```bash
-   python app.py
-```
-
-   Then open `http://127.0.0.1:5000` in your browser.
-
-## Database
-
-- **Local development:** uses SQLite, no extra setup required. The database file is created automatically on first run.
-- **Production:** set `DATABASE_URL` to your PostgreSQL connection string (for example, from Neon).
-
-## Deployment
-
-The application is deployed on **Render**.
-
-1. Push the repository to GitHub.
-2. Create a new **Web Service** on Render and connect the repository.
-3. Set the build command to `pip install -r requirements.txt`.
-4. Set the start command to `gunicorn app:app`.
-5. Add `SECRET_KEY` and `DATABASE_URL` under the service's environment variables.
-
-> Make sure `gunicorn` is listed in `requirements.txt`, and `psycopg2-binary` too if you are using PostgreSQL.
-
-## Usage
-
-1. Register a new account or log in.
-2. Add reagents, instruments, and consumables to the inventory.
-3. Update quantities as items are used or restocked.
-4. Monitor stock levels and reorder statuses from the dashboard.
-
-## Author
-
-**Tshaka Thando Divine**
+pip install -r requirements.txt
