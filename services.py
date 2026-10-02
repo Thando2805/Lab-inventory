@@ -106,7 +106,7 @@ def _norm(c):
 
 
 # -----------------------------------------------------------------------------
-# Header detection — finds the row that actually contains column names
+# Header detection & Table extraction
 # -----------------------------------------------------------------------------
 def _find_header_row(raw_df, max_scan=8):
     """
@@ -126,32 +126,6 @@ def _find_header_row(raw_df, max_scan=8):
     return None
 
 
-def _prepare_sheet(df):
-    """
-    Given a raw dataframe (with pd.read_excel(..., header=None)), detect the
-    header row and return a normalized dataframe with clean column names.
-    Returns None if the sheet isn't recognizable.
-    """
-    hdr = _find_header_row(df)
-    if hdr is None:
-        return None
-
-    df = df.iloc[hdr + 1:].reset_index(drop=True)
-    df.columns = [_norm(c) for c in df.iloc[0].tolist()] if False else \
-                 [_norm(c) for c in
-                  pd.read_excel if False else
-                  [str(x) for x in df.columns]]
-    # Rebuild with the header row values as column names
-    df.columns = [_norm(c) for c in df.columns]
-
-    # Because we sliced after reading without a header, we lost the column
-    # names. So re-read isn't possible here — instead, take the header row
-    # values from the original slice.
-    return df
-
-
-# The two helpers above are messy. Replace _prepare_sheet with a simpler version
-# that receives the full sheet read with header=None and the detected row index.
 def _extract_table(df_raw):
     """
     df_raw was loaded with pd.read_excel(file, sheet_name=None, header=None).
