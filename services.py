@@ -7,7 +7,7 @@ Two export formats:
 
 Two import shapes, auto-detected:
   - SOP shape: has Inventory ID + Opening Qty + Min Level
-  - Snapshot shape: has Item Description + Quantity + Units (File 2 style)
+  - Snapshot shape: has Item Description (or Item) + Quantity (or Qty)
 """
 
 import io
@@ -18,19 +18,24 @@ from models import (db, Item, Transaction, Area, CATEGORIES)
 
 
 # -----------------------------------------------------------------------------
-# Category mapping for snapshot imports (File 2 -> SOP)
+# Category mapping for snapshot imports
 # -----------------------------------------------------------------------------
 CATEGORY_MAP = {
     "glassware": "Apparatus",
     "pipettes": "Apparatus",
+    "pipette": "Apparatus",
     "accessories": "Apparatus",
     "equipment": "Equipment",
     "microbiology equipment": "Equipment",
     "chemical": "Chemical",
+    "chemicals": "Chemical",
     "reagent": "Reagent",
+    "reagents": "Reagent",
     "media": "Reagent",
     "stain": "Reagent",
+    "stains": "Reagent",
     "consumable": "Consumable",
+    "consumables": "Consumable",
     "plasticware": "Consumable",
     "ppe": "Consumable",
     "cleaning material": "Consumable",
@@ -67,14 +72,19 @@ def _clean(v):
     if isinstance(v, float) and pd.isna(v):
         return None
     s = str(v).strip()
-    return s if s else None
+    if not s or s in ("—", "―", "-", "N/A", "NA", "n/a"):
+        return None
+    return s
 
 
 def _num(v, default=0.0):
     try:
         if v is None or v == "" or (isinstance(v, float) and pd.isna(v)):
             return default
-        return float(v)
+        s = str(v).strip()
+        if s in ("—", "―", "-", "N/A", "NA"):
+            return default
+        return float(s)
     except (ValueError, TypeError):
         return default
 
@@ -92,51 +102,179 @@ def _date(v):
 
 
 def _norm(c):
-    return (c or "").strip().lower()
+    return str(c or "").strip().lower()
 
 
 # -----------------------------------------------------------------------------
-# Import — shape detection
+# Header detection — finds the row that actually contains column names
 # -----------------------------------------------------------------------------
-def _read_file(file_storage):
-    filename = file_storage.filename.lower()
-    if filename.endswith(".csv"):
-        return pd.read_csv(file_storage)
-    # .xlsx / .xls
-    return pd.read_excel(file_storage, sheet_name=None)
+def _find_header_row(raw_df, max_scan=8):
+    """
+    Scan the first `max_scan` rows of a header-less dataframe and return the
+    index of the row that looks like the real header (contains 'item' and
+    'quantity' or 'qty'). Return None if nothing looks right.
+    """
+    for i in range(min(max_scan, len(raw_df))):
+        row_vals = [_norm(v) for v in raw_df.iloc[i].tolist() if pd.notna(v)]
+        joined = " | ".join(row_vals)
+        has_item = any(k in joined for k in
+                       ["item description", "item number", "itemnumber",
+                        "item", "description"])
+        has_qty = any(k in joined for k in ["quantity", "qty"])
+        if has_item and has_qty:
+            return i
+    return None
 
 
+def _prepare_sheet(df):
+    """
+    Given a raw dataframe (with pd.read_excel(..., header=None)), detect the
+    header row and return a normalized dataframe with clean column names.
+    Returns None if the sheet isn't recognizable.
+    """
+    hdr = _find_header_row(df)
+    if hdr is None:
+        return None
+
+    df = df.iloc[hdr + 1:].reset_index(drop=True)
+    df.columns = [_norm(c) for c in df.iloc[0].tolist()] if False else \
+                 [_norm(c) for c in
+                  pd.read_excel if False else
+                  [str(x) for x in df.columns]]
+    # Rebuild with the header row values as column names
+    df.columns = [_norm(c) for c in df.columns]
+
+    # Because we sliced after reading without a header, we lost the column
+    # names. So re-read isn't possible here — instead, take the header row
+    # values from the original slice.
+    return df
+
+
+# The two helpers above are messy. Replace _prepare_sheet with a simpler version
+# that receives the full sheet read with header=None and the detected row index.
+def _extract_table(df_raw):
+    """
+    df_raw was loaded with pd.read_excel(file, sheet_name=None, header=None).
+    Detect the header row, cut, and return a DataFrame with proper columns.
+    """
+    if df_raw is None or df_raw.empty:
+        return None
+
+    hdr = _find_header_row(df_raw)
+    if hdr is None:
+        return None
+
+    header_vals = [_norm(v) if pd.notna(v) else "" for v in df_raw.iloc[hdr].tolist()]
+
+    body = df_raw.iloc[hdr + 1:].reset_index(drop=True)
+    body.columns = header_vals
+    body = body.dropna(how="all")
+    return body
+
+
+# -----------------------------------------------------------------------------
+# Shape detection
+# -----------------------------------------------------------------------------
 def detect_shape(df):
     cols = [_norm(c) for c in df.columns]
-    has_sop = all(k in cols for k in
-                  ["inventory id", "opening qty", "min level"])
-    has_snap = all(k in cols for k in
-                   ["item description", "quantity", "units"])
+    joined = " | ".join(cols)
+    has_sop = ("inventory id" in joined
+               and "opening qty" in joined
+               and "min level" in joined)
     if has_sop:
         return "sop"
-    if has_snap:
+
+    has_name = any(k in cols for k in
+                   ["item description", "item", "itemnumber",
+                    "item number", "description"])
+    has_qty = any(k in cols for k in ["quantity", "qty"])
+    if has_name and has_qty:
         return "snapshot"
+
     return "unknown"
+
+
+# -----------------------------------------------------------------------------
+# Row helpers — column lookups with synonyms
+# -----------------------------------------------------------------------------
+def _get(row, *keys, default=None):
+    for k in keys:
+        if k in row and row[k] is not None:
+            v = row[k]
+            if not (isinstance(v, float) and pd.isna(v)):
+                return v
+    return default
+
+
+def _row_name(row):
+    return _clean(_get(row,
+                       "item description",
+                       "item",
+                       "itemnumber",
+                       "item number",
+                       "description",
+                       "name"))
+
+
+def _row_qty(row):
+    return _num(_get(row, "quantity", "qty", default=0))
+
+
+def _row_unit(row, default="pcs"):
+    u = _clean(_get(row, "units", "unit"))
+    return u or default
+
+
+def _row_category(row):
+    return _clean(_get(row, "category", "catergory", "cat"))
 
 
 # -----------------------------------------------------------------------------
 # Import — SOP shape
 # -----------------------------------------------------------------------------
-def _import_sop_sheet(df, user_id, default_area=None):
-    """Import a single dataframe that matches the SOP Master Inventory layout."""
-    df.columns = [_norm(c).replace(" ", "_").replace("/", "_").replace(".", "")
-                  for c in df.columns]
+def _import_sop_sheet(df, user_id):
+    cols = {}
+    for c in df.columns:
+        cols[_norm(c)] = c
+
+    def col(*names):
+        for n in names:
+            if n in cols:
+                return cols[n]
+        return None
+
+    c_inv = col("inventory id")
+    c_name = col("item / description", "item description", "item")
+    c_cat = col("category")
+    c_opening = col("opening qty", "opening_qty")
+    c_unit = col("unit")
+    c_min = col("min level", "min_level")
+    c_reorder = col("reorder level", "reorder_level")
+    c_crit = col("critical?")
+    c_loc = col("location")
+    c_mfr = col("manufacturer / supplier", "manufacturer")
+    c_lot = col("lot / serial", "lot_serial")
+    c_recv = col("received / acquired", "received_date")
+    c_exp = col("expiry date", "expiry_date")
+    c_svc = col("cal./service due", "service_due")
+    c_val = col("unit value (usd)", "unit_value")
+    c_resp = col("responsible person", "responsible")
+    c_cond = col("condition / status", "condition_status")
 
     added, updated, skipped = 0, 0, 0
 
     for _, row in df.iterrows():
-        inv_id = _clean(row.get("inventory_id"))
-        name = _clean(row.get("item___description")) or _clean(row.get("item_description")) or _clean(row.get("item"))
+        inv_id = _clean(row.get(c_inv)) if c_inv else None
+        name = _clean(row.get(c_name)) if c_name else None
         if not (inv_id or name):
             skipped += 1
             continue
+        n_up = (name or "").upper()
+        if n_up.startswith("TOTAL"):
+            skipped += 1
+            continue
 
-        category = _clean(row.get("category")) or "Apparatus"
+        category = _clean(row.get(c_cat)) if c_cat else "Apparatus"
         if category not in CATEGORIES:
             category = "Apparatus"
 
@@ -146,22 +284,21 @@ def _import_sop_sheet(df, user_id, default_area=None):
         elif name:
             existing = Item.query.filter_by(name=name, category=category).first()
 
-        opening = _num(row.get("opening_qty"))
-        unit = _clean(row.get("unit")) or "each"
-        min_lvl = _num(row.get("min_level"))
-        reorder = _num(row.get("reorder_level"))
-        critical = _norm(row.get("critical")) in ("yes", "true", "1", "y")
-        location = _clean(row.get("location"))
-        manufacturer = _clean(row.get("manufacturer___supplier")) \
-                       or _clean(row.get("manufacturer_supplier")) \
-                       or _clean(row.get("manufacturer"))
-        lot = _clean(row.get("lot___serial")) or _clean(row.get("lot_serial")) or _clean(row.get("lot"))
-        received = _date(row.get("received___acquired")) or _date(row.get("received_acquired"))
-        expiry = _date(row.get("expiry_date"))
-        service_due = _date(row.get("cal_service_due")) or _date(row.get("service_due"))
-        unit_value = _num(row.get("unit_value__usd")) or _num(row.get("unit_value"))
-        responsible = _clean(row.get("responsible_person"))
-        condition = _clean(row.get("condition___status")) or _clean(row.get("condition_status")) or "Active"
+        opening = _num(row.get(c_opening)) if c_opening else 0.0
+        unit = (_clean(row.get(c_unit)) if c_unit else None) or "each"
+        min_lvl = _num(row.get(c_min)) if c_min else 0.0
+        reorder = _num(row.get(c_reorder)) if c_reorder else 0.0
+        crit_raw = _clean(row.get(c_crit)) if c_crit else None
+        critical = (crit_raw or "").lower() in ("yes", "true", "1", "y")
+        location = _clean(row.get(c_loc)) if c_loc else None
+        manufacturer = _clean(row.get(c_mfr)) if c_mfr else None
+        lot = _clean(row.get(c_lot)) if c_lot else None
+        received = _date(row.get(c_recv)) if c_recv else None
+        expiry = _date(row.get(c_exp)) if c_exp else None
+        service_due = _date(row.get(c_svc)) if c_svc else None
+        unit_value = _num(row.get(c_val)) if c_val else 0.0
+        responsible = _clean(row.get(c_resp)) if c_resp else None
+        condition = (_clean(row.get(c_cond)) if c_cond else None) or "Active"
 
         if existing:
             existing.opening_qty = opening or existing.opening_qty
@@ -184,7 +321,6 @@ def _import_sop_sheet(df, user_id, default_area=None):
                 inventory_id=inv_id or next_inventory_id(category),
                 name=name or "Unnamed item",
                 category=category,
-                area_id=default_area,
                 manufacturer=manufacturer,
                 lot_serial=lot,
                 opening_qty=opening,
@@ -220,13 +356,9 @@ def _import_sop_sheet(df, user_id, default_area=None):
 
 
 # -----------------------------------------------------------------------------
-# Import — Snapshot shape (File 2)
+# Import — Snapshot shape (per-sheet area, category mapping)
 # -----------------------------------------------------------------------------
 def _import_snapshot_sheet(df, user_id, sheet_name):
-    """Import one sheet where each row is Item Description / Category / Quantity / Units."""
-    df.columns = [_norm(c).replace(" ", "_") for c in df.columns]
-
-    # Create area from sheet name if it doesn't exist
     area_name = (sheet_name or "Imported").strip()
     area = Area.query.filter_by(name=area_name).first()
     if not area:
@@ -238,28 +370,25 @@ def _import_snapshot_sheet(df, user_id, sheet_name):
     added, updated, skipped = 0, 0, 0
 
     for _, row in df.iterrows():
-        name = _clean(row.get("item_description")) \
-               or _clean(row.get("item")) \
-               or _clean(row.get("item_number"))
+        name = _row_name(row)
         if not name:
             skipped += 1
             continue
 
-        # Skip obvious summary rows
         n_up = name.upper()
         if n_up.startswith("TOTAL") or n_up == "TOTAL ITEMS":
             skipped += 1
             continue
 
-        raw_cat = _clean(row.get("category")) or ""
+        raw_cat = _row_category(row) or ""
         mapped_cat = CATEGORY_MAP.get(_norm(raw_cat), "Consumable")
 
-        qty = _num(row.get("quantity"))
-        unit = _clean(row.get("units")) or _clean(row.get("unit")) or "each"
+        qty = _row_qty(row)
+        unit = _row_unit(row, default="pcs")
 
-        # Capacity / size gets appended to the name for clarity
-        cap = _clean(row.get("capacity"))
-        full_name = f"{name} {cap}".strip() if cap and cap != "—" else name
+        # Capacity gets appended if present (Biochemical sheet)
+        cap = _clean(_get(row, "capacity"))
+        full_name = f"{name} {cap}".strip() if cap else name
 
         existing = Item.query.filter_by(name=full_name,
                                         category=mapped_cat).first()
@@ -301,13 +430,13 @@ def _import_snapshot_sheet(df, user_id, sheet_name):
 # -----------------------------------------------------------------------------
 # Public — import dispatcher
 # -----------------------------------------------------------------------------
+SKIP_SHEETS = {
+    "instructions", "dashboard", "lists",
+    "monthly count", "discrepancy capa", "disposal register",
+}
+
+
 def import_workbook(file_storage, user_id):
-    """
-    Returns a summary dict:
-      { 'shape': 'sop' | 'snapshot',
-        'sheets': [ {name, added, updated, skipped}, ... ],
-        'totals': { added, updated, skipped } }
-    """
     filename = file_storage.filename.lower()
 
     summary = {
@@ -316,43 +445,44 @@ def import_workbook(file_storage, user_id):
         "totals": {"added": 0, "updated": 0, "skipped": 0},
     }
 
+    # ---- CSV path -----------------------------------------------------------
     if filename.endswith(".csv"):
         df = pd.read_csv(file_storage)
         shape = detect_shape(df)
-        summary["shape"] = shape
+        summary["shape"] = shape or "unknown"
         if shape == "sop":
             a, u, s = _import_sop_sheet(df, user_id)
         elif shape == "snapshot":
             a, u, s = _import_snapshot_sheet(df, user_id, "Imported")
         else:
-            raise ValueError("Unrecognized file shape. Expected SOP or snapshot columns.")
+            raise ValueError("Unrecognized CSV columns.")
         summary["sheets"].append({"name": file_storage.filename,
                                   "added": a, "updated": u, "skipped": s})
         summary["totals"] = {"added": a, "updated": u, "skipped": s}
         db.session.commit()
         return summary
 
-    # Excel — read every sheet
-    sheets = pd.read_excel(file_storage, sheet_name=None)
+    # ---- Excel path — read every sheet with no header ----------------------
+    raw_sheets = pd.read_excel(file_storage, sheet_name=None, header=None)
 
-    for sheet_name, df in sheets.items():
-        if df is None or df.empty:
+    for sheet_name, df_raw in raw_sheets.items():
+        if df_raw is None or df_raw.empty:
+            continue
+        if _norm(sheet_name) in SKIP_SHEETS:
             continue
 
-        # Skip known meta sheets
-        if _norm(sheet_name) in ("instructions", "dashboard", "lists",
-                                 "monthly count", "discrepancy capa",
-                                 "disposal register"):
+        table = _extract_table(df_raw)
+        if table is None or table.empty:
             continue
 
-        shape = detect_shape(df)
+        shape = detect_shape(table)
         if summary["shape"] is None and shape != "unknown":
             summary["shape"] = shape
 
         if shape == "sop":
-            a, u, s = _import_sop_sheet(df, user_id)
+            a, u, s = _import_sop_sheet(table, user_id)
         elif shape == "snapshot":
-            a, u, s = _import_snapshot_sheet(df, user_id, sheet_name)
+            a, u, s = _import_snapshot_sheet(table, user_id, sheet_name)
         else:
             continue
 
@@ -371,7 +501,6 @@ def import_workbook(file_storage, user_id):
 # Export — Native
 # -----------------------------------------------------------------------------
 def export_native():
-    """Multi-sheet Excel: one sheet per category + Transactions."""
     buf = io.BytesIO()
 
     def rows_for(category):
@@ -415,10 +544,8 @@ def export_native():
             rows = rows_for(cat)
             df = pd.DataFrame(rows) if rows else pd.DataFrame(
                 columns=["Inventory ID", "Item / Description", "Category"])
-            sheet_name = cat[:31]
-            df.to_excel(w, sheet_name=sheet_name, index=False)
+            df.to_excel(w, sheet_name=cat[:31], index=False)
 
-        # Transactions
         txs = Transaction.query.order_by(Transaction.entry_date.desc()).all()
         tx_rows = [{
             "Transaction Date": t.trans_date,
@@ -465,7 +592,6 @@ SOP_STOCK_HEADERS = [
 
 
 def export_sop():
-    """Single-sheet Excel matching the SOP Master Inventory layout + Stock Movements."""
     buf = io.BytesIO()
 
     master_rows = []
