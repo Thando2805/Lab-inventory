@@ -75,7 +75,10 @@ class SecurityAndBrandingTests(unittest.TestCase):
         with self.app.test_client() as client:
             response = client.get("/login")
             self.assertEqual(response.status_code, 200)
-            self.assertIn("National Pathology Research and Diagnostic Centre", response.get_data(as_text=True))
+            text = response.get_data(as_text=True)
+            self.assertIn("Midlands State University", text)
+            self.assertIn("National Pathology Research and Diagnostic Centre", text)
+            self.assertIn("MSU NPRDC", text)
 
 
 if __name__ == "__main__":

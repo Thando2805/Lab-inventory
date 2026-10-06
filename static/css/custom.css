@@ -123,21 +123,19 @@ button {
 }
 
 .brand-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  background: var(--accent);
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 700;
-  font-size: 13px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: block;
+  object-fit: cover;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.25);
 }
 
 .brand-text {
   color: #F8FAFC;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
+  font-size: 13px;
 }
 
 .nav-section {
@@ -326,6 +324,15 @@ button {
   font-size: 12px;
   color: var(--muted);
   margin-top: 2px;
+}
+
+.login-brand-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: 6px;
 }
 
 .login-card h1 {

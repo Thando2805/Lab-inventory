@@ -5,6 +5,7 @@ from flask_login import LoginManager, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from sqlalchemy.orm import selectinload
 
 from config import Config
 from models import (db, User, Item, Transaction, Area, AuditLog,
@@ -135,7 +136,7 @@ def register_routes(app):
     @app.route("/")
     @login_required
     def index():
-        items = Item.query.filter_by(is_archived=False).all()
+        items = Item.query.options(selectinload(Item.area)).filter_by(is_archived=False).all()
 
         total_lines = len(items)
         critical = sum(1 for i in items if i.stock_status == "CRITICAL")
@@ -182,7 +183,7 @@ def register_routes(app):
         area_id = request.args.get("area", type=int)
         q = request.args.get("q", "").strip()
 
-        query = Item.query.filter_by(category=category, is_archived=False)
+        query = Item.query.options(selectinload(Item.area)).filter_by(category=category, is_archived=False)
 
         if area_id:
             query = query.filter_by(area_id=area_id)
