@@ -15,8 +15,9 @@
 
         <aside class="sidebar">
             <div class="brand">
-                <div class="brand-mark">LI</div>
-                <div class="brand-text">Lab Inventory</div>
+                <img src="{{ url_for('static', filename='images/nprdc-logo.svg') }}" alt="NPRDC Logo"
+                    class="brand-mark">
+                <div class="brand-text">NPRDC</div>
             </div>
 
             <div class="nav-section">Overview</div>
@@ -41,7 +42,7 @@
                 class="nav-item {% if request.endpoint == 'transactions' %}active{% endif %}">
                 Transactions
             </a>
-            {% if current_user.role in ['admin', 'technician'] %}
+            {% if current_user.role == 'admin' %}
             <a href="{{ url_for('import_page') }}"
                 class="nav-item {% if request.endpoint == 'import_page' %}active{% endif %}">
                 Import

@@ -35,6 +35,14 @@ def create_app():
     def load_user(uid):
         return User.query.get(int(uid))
 
+    @app.after_request
+    def add_security_headers(response):
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        return response
+
     app.register_blueprint(auth_bp)
 
     @app.context_processor
@@ -118,6 +126,10 @@ def log_audit(action, entity_type=None, entity_id=None):
 
 
 def register_routes(app):
+
+    @app.route("/health")
+    def health():
+        return {"status": "ok", "service": "lab-inventory"}, 200
 
     # ----- Dashboard ---------------------------------------------------------
     @app.route("/")
@@ -220,7 +232,7 @@ def register_routes(app):
 
     # ----- Add Item ----------------------------------------------------------
     @app.route("/item/new/<category>", methods=["GET", "POST"])
-    @role_required("admin", "technician")
+    @role_required("admin")
     def item_new(category):
         if category not in CATEGORIES:
             abort(404)
@@ -280,7 +292,7 @@ def register_routes(app):
 
     # ----- Edit Item ---------------------------------------------------------
     @app.route("/item/<int:item_id>/edit", methods=["GET", "POST"])
-    @role_required("admin", "technician")
+    @role_required("admin")
     def item_edit(item_id):
         item = Item.query.get_or_404(item_id)
         form = ItemForm(obj=item)
@@ -329,7 +341,7 @@ def register_routes(app):
 
     # ----- Log transaction ---------------------------------------------------
     @app.route("/item/<int:item_id>/transaction", methods=["POST"])
-    @role_required("admin", "technician")
+    @role_required("admin")
     def item_transaction(item_id):
         item = Item.query.get_or_404(item_id)
         form = TransactionForm()
@@ -378,7 +390,7 @@ def register_routes(app):
 
     # ----- Import ------------------------------------------------------------
     @app.route("/import", methods=["GET", "POST"])
-    @role_required("admin", "technician")
+    @role_required("admin")
     def import_page():
         if request.method == "POST":
             f = request.files.get("file")
@@ -437,4 +449,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(__import__("os").getenv("PORT", "5000")), debug=app.config.get("DEBUG", False))

@@ -1,14 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Sign in — Lab Inventory{% endblock %}
+{% block title %}Sign in — NPRDC Inventory{% endblock %}
 
 {% block content_anon %}
 <div class="login-wrap">
     <div class="login-card">
-        <div class="login-logo">LI</div>
+        <div class="login-brand">
+            <img src="{{ url_for('static', filename='images/nprdc-logo.svg') }}" alt="NPRDC logo" class="login-logo">
+            <div>
+                <div class="login-brand-kicker">National Pathology Research and Diagnostic Centre</div>
+                <div class="login-brand-sub">Inventory Access Portal</div>
+            </div>
+        </div>
+
         <h1>Sign in</h1>
         <p class="sub">Laboratory Inventory Management</p>
 
-        <form method="post" style="display:flex;flex-direction:column;gap:14px;">
+        <form method="post" class="login-form">
             {{ form.hidden_tag() }}
 
             <div class="field">
@@ -21,7 +28,7 @@
                 {{ form.password(class="") }}
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;">
+            <button type="submit" class="btn btn-primary login-submit">
                 Sign in
             </button>
         </form>

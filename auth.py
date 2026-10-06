@@ -15,7 +15,7 @@ def role_required(*roles):
         @login_required
         def decorated(*args, **kwargs):
             if current_user.role not in roles:
-                flash("You do not have permission to do that.", "error")
+                flash("This action requires admin privileges.", "error")
                 return redirect(url_for("index"))
             return fn(*args, **kwargs)
         return decorated
