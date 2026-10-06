@@ -221,6 +221,10 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background:
+    linear-gradient(180deg, rgba(247, 248, 250, 0.93), rgba(247, 248, 250, 0.96)),
+    url('/static/images/nprdc-logo.svg') center center / 52% auto no-repeat;
+  background-attachment: fixed;
 }
 
 .topbar {
@@ -396,6 +400,8 @@ button {
   padding: 24px 28px 40px;
   max-width: 1400px;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 /* ============================================================
