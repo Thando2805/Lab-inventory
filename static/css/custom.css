@@ -1007,6 +1007,31 @@ td.mono,
   justify-content: flex-end;
 }
 
+.location-inline-form {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 205px;
+}
+
+.location-inline-form input {
+  width: 100%;
+  min-width: 110px;
+  height: 30px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+}
+
+.location-inline-form input:focus {
+  border-color: var(--accent);
+  outline: 2px solid rgba(15, 118, 110, .12);
+}
+
 .hstack {
   display: flex;
   align-items: center;

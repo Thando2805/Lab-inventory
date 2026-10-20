@@ -5,7 +5,7 @@ from wtforms import (StringField, PasswordField, SelectField, FloatField,
 from wtforms.validators import DataRequired, Optional, NumberRange, Length
 
 from models import (CATEGORIES, TRANSACTION_TYPES, UNITS,
-                    CONDITION_STATUSES, LOCATIONS)
+                    CONDITION_STATUSES)
 
 
 class LoginForm(FlaskForm):
@@ -29,9 +29,7 @@ class ItemForm(FlaskForm):
     unit = SelectField("Unit",
                        choices=[(u, u) for u in UNITS],
                        validators=[DataRequired()])
-    location = SelectField("Location",
-                           choices=[("", "—")] + [(l, l) for l in LOCATIONS],
-                           validators=[Optional()])
+    location = StringField("Location", validators=[Optional(), Length(max=80)])
     received_date = DateField("Received / Acquired", validators=[Optional()])
     expiry_date = DateField("Expiry Date", validators=[Optional()])
     min_level = FloatField("Min Level", default=0.0)

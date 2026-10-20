@@ -427,8 +427,31 @@ def register_routes(app):
         flash(f"Movement recorded for {item.inventory_id}.", "success")
         return redirect(url_for("item_detail", item_id=item.id))
 
+    @app.route("/item/<int:item_id>/location", methods=["POST"])
+    @role_required("admin", "technician")
+    def item_location_update(item_id):
+        item = Item.query.get_or_404(item_id)
+        location = request.form.get("location", "").strip()
+        if len(location) > 80:
+            flash("Location must be 80 characters or fewer.", "error")
+        elif location != (item.location or ""):
+            before = item_snapshot(item)
+            item.location = location or None
+            log_audit("UPDATE", "Item", item.id, before=before, after=item_snapshot(item))
+            db.session.commit()
+            flash(f"Location updated for {item.inventory_id}.", "success")
+        if request.form.get("return_to") == "archived":
+            return redirect(url_for("archived", page=request.form.get("page", "1")))
+        return redirect(url_for(
+            "section", category=item.category,
+            show=request.form.get("show", "active"),
+            area=request.form.get("area") or None,
+            q=request.form.get("q", ""),
+            page=request.form.get("page", "1"),
+        ))
+
     @app.route("/item/<int:item_id>/archive", methods=["POST"])
-    @role_required("admin")
+    @role_required("admin", "technician")
     def item_archive(item_id):
         item = Item.query.get_or_404(item_id)
         if item.current_qty > 0:

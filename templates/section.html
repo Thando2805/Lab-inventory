@@ -60,9 +60,10 @@
                 <th style="width:180px;">Area</th>
                 <th class="num" style="width:90px;">Qty</th>
                 <th style="width:70px;">Unit</th>
-                <th style="width:130px;">Location</th>
+                <th style="width:220px;">Location</th>
                 <th style="width:120px;">Stock</th>
                 <th style="width:120px;">Expiry</th>
+                {% if current_user.role in ('admin', 'technician') %}<th style="width:110px;">Actions</th>{% endif %}
             </tr>
         </thead>
         <tbody>
@@ -77,7 +78,19 @@
                 <td>{{ it.area.name if it.area else '—' }}</td>
                 <td class="num">{{ it.current_qty }}</td>
                 <td>{{ it.unit }}</td>
-                <td>{{ it.location or '—' }}</td>
+                <td>
+                    {% if current_user.role in ('admin', 'technician') %}
+                    <form method="post" class="location-inline-form" action="{{ url_for('item_location_update', item_id=it.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="show" value="{{ show }}">
+                        <input type="hidden" name="area" value="{{ area_id or '' }}">
+                        <input type="hidden" name="q" value="{{ q }}">
+                        <input type="hidden" name="page" value="{{ page_obj.page }}">
+                        <input type="text" name="location" value="{{ it.location or '' }}" maxlength="80" placeholder="Shelf, fridge, bench…" aria-label="Location for {{ it.name }}">
+                        <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+                    </form>
+                    {% else %}{{ it.location or '—' }}{% endif %}
+                </td>
                 <td>
                     {% set s = it.stock_status %}
                     <span class="pill
@@ -99,6 +112,16 @@
                         {{ e }}
                     </span>
                 </td>
+                {% if current_user.role in ('admin', 'technician') %}
+                <td>
+                    {% if it.current_qty <= 0 %}
+                    <form method="post" action="{{ url_for('item_archive', item_id=it.id) }}" data-confirm="Move {{ it.inventory_id }} to the archive?">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-secondary btn-sm">Archive</button>
+                    </form>
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>
