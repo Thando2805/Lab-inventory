@@ -53,7 +53,7 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data.strip()).first()
         if user and user.is_active and user.check_password(form.password.data):
-            login_user(user, remember=False)
+            login_user(user, remember=bool(form.remember.data))
             user.last_login_at = datetime.utcnow()
             db.session.commit()
             _log(user, "LOGIN", "User", user.id)
@@ -62,6 +62,11 @@ def login():
         flash("Invalid credentials.", "error")
 
     return render_template("login.html", form=form)
+
+
+@auth_bp.route("/forgot-password")
+def forgot_password():
+    return render_template("forgot_password.html")
 
 
 @auth_bp.route("/logout")

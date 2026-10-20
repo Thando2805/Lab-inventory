@@ -11,6 +11,7 @@ from models import (CATEGORIES, TRANSACTION_TYPES, UNITS,
 class LoginForm(FlaskForm):
     username = StringField("Username", validators=[DataRequired(), Length(3, 64)])
     password = PasswordField("Password", validators=[DataRequired()])
+    remember = BooleanField("Remember session")
     submit = SubmitField("Sign in")
 
 
