@@ -1047,12 +1047,10 @@ td.mono,
   place-items: center;
   padding: 16px;
   background-color: #020817;
-  background-image:
-    linear-gradient(125deg, rgba(2, 8, 23, .80), rgba(2, 35, 45, .78)),
-    url("../images/nprdc-building.png");
-  background-position: center, center;
-  background-size: cover, cover;
-  background-repeat: no-repeat, no-repeat;
+  background-image: url("../images/nprdc-building.png");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .login-card {
@@ -1083,6 +1081,19 @@ td.mono,
   height: 48px;
   display: block;
   object-fit: contain;
+}
+
+.login-brand-logo-only {
+  min-height: 104px;
+  justify-content: center;
+  padding: 10px 16px;
+}
+
+.login-brand-logo-only .login-emblem {
+  flex: 0 1 auto;
+  width: min(100%, 340px);
+  height: auto;
+  max-height: 84px;
 }
 
 .login-brand-copy {
