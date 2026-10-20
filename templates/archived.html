@@ -28,7 +28,7 @@
                 <th class="num" style="width:90px;">Qty</th>
                 <th style="width:70px;">Unit</th>
                 <th style="width:220px;">Location</th>
-                <th style="width:180px;"></th>
+                <th style="width:180px;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -58,7 +58,7 @@
                     {% if current_user.role in ('admin', 'technician') %}
                     <form method="post" action="{{ url_for('item_restore', item_id=it.id) }}" style="display:inline;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-secondary btn-sm">Restore</button>
+                        <button type="submit" class="btn btn-secondary btn-sm">Restore item</button>
                     </form>
                     {% endif %}
                 </td>

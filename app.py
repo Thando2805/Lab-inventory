@@ -454,9 +454,6 @@ def register_routes(app):
     @role_required("admin", "technician")
     def item_archive(item_id):
         item = Item.query.get_or_404(item_id)
-        if item.current_qty > 0:
-            flash("Only out-of-stock items can be archived.", "error")
-            return redirect(url_for("item_detail", item_id=item.id))
         before = item_snapshot(item)
         item.is_archived = True
         log_audit("ARCHIVE", "Item", item.id, before=before, after=item_snapshot(item))

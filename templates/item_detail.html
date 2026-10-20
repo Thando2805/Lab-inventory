@@ -14,7 +14,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-secondary">Restore to inventory</button>
     </form>
-    {% elif not item.is_archived and item.current_qty <= 0 %}
+    {% elif not item.is_archived %}
     <form method="post" action="{{ url_for('item_archive', item_id=item.id) }}" class="mt-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-secondary">Move to archive</button>

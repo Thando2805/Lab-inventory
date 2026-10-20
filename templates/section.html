@@ -114,12 +114,10 @@
                 </td>
                 {% if current_user.role in ('admin', 'technician') %}
                 <td>
-                    {% if it.current_qty <= 0 %}
                     <form method="post" action="{{ url_for('item_archive', item_id=it.id) }}" data-confirm="Move {{ it.inventory_id }} to the archive?">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-secondary btn-sm">Archive</button>
                     </form>
-                    {% else %}<span class="muted">—</span>{% endif %}
                 </td>
                 {% endif %}
             </tr>
