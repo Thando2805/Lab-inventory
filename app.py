@@ -465,7 +465,7 @@ def register_routes(app):
         return redirect(url_for("archived"))
 
     @app.route("/item/<int:item_id>/restore", methods=["POST"])
-    @role_required("admin")
+    @role_required("admin", "technician")
     def item_restore(item_id):
         item = Item.query.get_or_404(item_id)
         if not item.is_archived:
