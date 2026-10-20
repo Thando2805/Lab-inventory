@@ -1074,20 +1074,11 @@ td.mono,
 }
 
 .login-emblem {
-  flex: 0 0 38px;
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  color: #5cf2d3;
-  background: linear-gradient(145deg, #006b63, #004b48);
-  box-shadow: 0 5px 12px rgba(0, 80, 75, .23);
-}
-
-.login-emblem svg {
-  width: 24px;
-  height: 24px;
+  flex: 0 0 54px;
+  width: 54px;
+  height: 48px;
+  display: block;
+  object-fit: contain;
 }
 
 .login-brand-copy {
