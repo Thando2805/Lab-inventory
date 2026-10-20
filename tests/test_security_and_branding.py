@@ -1,18 +1,17 @@
 import unittest
 
 from app import create_app
-from models import db, User, Item, Area
+from models import db, User, Item, Area, Transaction
 
 
 class SecurityAndBrandingTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app()
-        self.app.config.update(
-            TESTING=True,
-            WTF_CSRF_ENABLED=False,
-            SQLALCHEMY_DATABASE_URI="sqlite://",
-            SECRET_KEY="test-secret-key",
-        )
+        self.app = create_app({
+            "TESTING": True,
+            "WTF_CSRF_ENABLED": False,
+            "SQLALCHEMY_DATABASE_URI": "sqlite://",
+            "SECRET_KEY": "test-secret-key",
+        })
 
         with self.app.app_context():
             db.drop_all()
@@ -79,6 +78,137 @@ class SecurityAndBrandingTests(unittest.TestCase):
             self.assertIn("Midlands State University", text)
             self.assertIn("National Pathology Research and Diagnostic Centre", text)
             self.assertIn("MSU NPRDC", text)
+
+    def _login_admin(self, client):
+        return client.post("/login", data={
+            "username": self.admin_user,
+            "password": "StrongPass!123",
+        })
+
+    def test_login_rejects_external_next_url(self):
+        with self.app.test_client() as client:
+            response = client.post(
+                "/login?next=https://attacker.example/",
+                data={"username": self.admin_user, "password": "StrongPass!123"},
+            )
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response.headers["Location"], "/")
+
+    def test_issue_cannot_exceed_current_stock(self):
+        with self.app.test_client() as client:
+            self._login_admin(client)
+            response = client.post(f"/item/{self.item_id}/transaction", data={
+                "trans_type": "ISSUE / USE",
+                "qty_in": "0",
+                "qty_out": "6",
+                "unit": "each",
+            })
+            self.assertEqual(response.status_code, 302)
+            with self.app.app_context():
+                self.assertEqual(Transaction.query.filter_by(item_id=self.item_id).count(), 0)
+
+    def test_transaction_unit_must_match_item_unit(self):
+        with self.app.test_client() as client:
+            self._login_admin(client)
+            response = client.post(f"/item/{self.item_id}/transaction", data={
+                "trans_type": "RECEIVE",
+                "qty_in": "2",
+                "qty_out": "0",
+                "unit": "box",
+            })
+            self.assertEqual(response.status_code, 302)
+            with self.app.app_context():
+                self.assertEqual(Transaction.query.filter_by(item_id=self.item_id).count(), 0)
+
+    def test_opening_quantity_cannot_be_changed_after_creation(self):
+        with self.app.test_client() as client:
+            self._login_admin(client)
+            response = client.post(f"/item/{self.item_id}/edit", data={
+                "name": "Microscope",
+                "opening_qty": "9",
+                "unit": "each",
+                "location": "Bench",
+                "min_level": "2",
+                "reorder_level": "3",
+                "condition_status": "Active",
+            })
+            self.assertEqual(response.status_code, 200)
+            with self.app.app_context():
+                item = db.session.get(Item, self.item_id)
+                self.assertEqual(item.opening_qty, 5)
+
+    def test_out_of_stock_item_can_be_archived_and_restored(self):
+        with self.app.app_context():
+            item = Item(
+                inventory_id="APP-002",
+                name="Empty Reagent",
+                category="Apparatus",
+                opening_qty=0,
+                unit="bottle",
+            )
+            db.session.add(item)
+            db.session.commit()
+            item_id = item.id
+
+        with self.app.test_client() as client:
+            self._login_admin(client)
+            response = client.post(f"/item/{item_id}/archive")
+            self.assertEqual(response.status_code, 302)
+            with self.app.app_context():
+                self.assertTrue(db.session.get(Item, item_id).is_archived)
+            response = client.post(f"/item/{item_id}/restore")
+            self.assertEqual(response.status_code, 302)
+            with self.app.app_context():
+                self.assertFalse(db.session.get(Item, item_id).is_archived)
+
+    def test_in_stock_item_cannot_be_archived(self):
+        with self.app.test_client() as client:
+            self._login_admin(client)
+            response = client.post(f"/item/{self.item_id}/archive")
+            self.assertEqual(response.status_code, 302)
+            with self.app.app_context():
+                self.assertFalse(db.session.get(Item, self.item_id).is_archived)
+
+    def test_new_item_opening_quantity_is_not_counted_twice(self):
+        with self.app.test_client() as client:
+            self._login_admin(client)
+            response = client.post("/item/new/Apparatus", data={
+                "name": "New Pipette",
+                "opening_qty": "7",
+                "unit": "each",
+                "min_level": "0",
+                "reorder_level": "0",
+            })
+            self.assertEqual(response.status_code, 302)
+            with self.app.app_context():
+                item = Item.query.filter_by(name="New Pipette").one()
+                self.assertEqual(item.current_qty, 7)
+                self.assertEqual(len(item.transactions), 0)
+
+    def test_section_lists_are_paginated(self):
+        with self.app.app_context():
+            for number in range(51):
+                db.session.add(Item(
+                    inventory_id=f"EQU-{number + 1:03d}",
+                    name=f"Equipment {number + 1:03d}",
+                    category="Equipment",
+                    opening_qty=1,
+                    unit="each",
+                ))
+            db.session.commit()
+
+        with self.app.test_client() as client:
+            self._login_admin(client)
+            response = client.get("/section/Equipment?show=all")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Page 1 of 2", response.get_data(as_text=True))
+
+    def test_dashboard_uses_database_stock_summary(self):
+        with self.app.test_client() as client:
+            self._login_admin(client)
+            response = client.get("/")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Total Inventory Lines", response.get_data(as_text=True))
 
 
 if __name__ == "__main__":

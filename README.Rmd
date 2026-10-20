@@ -80,3 +80,6 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
+
+
+Copy .env.example.example to .env and set a private admin password before starting the app. For production, set APP_ENV=production, provide a unique ADMIN_USERNAME, an ADMIN_PASSWORD with at least 16 characters, and a SECRET_KEY with at least 32 characters. Keep FLASK_DEBUG=false; production also enables secure session cookies by default.

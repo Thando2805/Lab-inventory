@@ -333,16 +333,6 @@ def _import_sheet(df, user_id, sheet_name):
         db.session.add(item)
         db.session.flush()
 
-        if qty > 0:
-            db.session.add(Transaction(
-                item_id=item.id,
-                trans_date=date.today(),
-                trans_type="RECEIVE",
-                qty_in=qty,
-                unit=unit,
-                user_id=user_id,
-                reference_notes=f"Imported from {sheet_name}",
-            ))
         added += 1
 
     return added, updated, skipped

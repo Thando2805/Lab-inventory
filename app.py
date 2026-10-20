@@ -1,4 +1,5 @@
 from datetime import date, datetime
+import json
 from flask import (Flask, render_template, redirect, url_for, flash,
                    request, abort, send_file)
 from flask_login import LoginManager, login_required, current_user
@@ -6,6 +7,8 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import case, func
 
 from config import Config
 from models import (db, User, Item, Transaction, Area, AuditLog,
@@ -19,9 +22,11 @@ csrf = CSRFProtect()
 limiter = Limiter(key_func=get_remote_address)
 
 
-def create_app():
+def create_app(config_overrides=None):
     app = Flask(__name__)
     app.config.from_object(Config)
+    if config_overrides:
+        app.config.update(config_overrides)
 
     db.init_app(app)
     csrf.init_app(app)
@@ -116,12 +121,27 @@ def next_inventory_id(category):
     return f"{prefix}-{max_n + 1:03d}"
 
 
-def log_audit(action, entity_type=None, entity_id=None):
+def item_snapshot(item):
+    fields = (
+        "inventory_id", "name", "category", "area_id", "manufacturer",
+        "lot_serial", "opening_qty", "unit", "location", "received_date",
+        "expiry_date", "min_level", "reorder_level", "critical",
+        "condition_status", "service_due", "unit_value", "responsible", "notes",
+        "is_archived",
+    )
+    return {field: getattr(item, field) for field in fields}
+
+
+def log_audit(action, entity_type=None, entity_id=None, before=None, after=None):
     db.session.add(AuditLog(
         user_id=current_user.id if current_user.is_authenticated else None,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
+        before_json=json.dumps(before, default=lambda value: value.isoformat()
+                               if hasattr(value, "isoformat") else str(value)) if before is not None else None,
+        after_json=json.dumps(after, default=lambda value: value.isoformat()
+                              if hasattr(value, "isoformat") else str(value)) if after is not None else None,
         ip_address=request.remote_addr,
     ))
 
@@ -130,30 +150,44 @@ def register_routes(app):
 
     @app.route("/health")
     def health():
+        try:
+            db.session.execute(db.text("SELECT 1"))
+        except SQLAlchemyError:
+            db.session.rollback()
+            return {"status": "unavailable", "service": "lab-inventory"}, 503
         return {"status": "ok", "service": "lab-inventory"}, 200
 
     # ----- Dashboard ---------------------------------------------------------
     @app.route("/")
     @login_required
     def index():
-        items = Item.query.options(selectinload(Item.area)).filter_by(is_archived=False).all()
-
-        total_lines = len(items)
-        critical = sum(1 for i in items if i.stock_status == "CRITICAL")
-        below_min = sum(1 for i in items if i.stock_status == "BELOW MIN")
-        reorder = sum(1 for i in items if i.stock_status == "REORDER")
-        ok = sum(1 for i in items if i.stock_status == "OK")
-
-        near_expiry = sum(1 for i in items if i.expiry_status == "NEAR EXPIRY")
-        expired = sum(1 for i in items if i.expiry_status == "EXPIRED")
-
-        service_due_30 = sum(1 for i in items if i.service_status == "DUE <=30 DAYS")
-        service_overdue = sum(1 for i in items if i.service_status == "OVERDUE")
-
-        total_value = round(sum(i.current_value for i in items), 2)
-
-        cat_counts = {c: sum(1 for i in items if i.category == c)
-                      for c in CATEGORIES}
+        today = date.today()
+        in_90_days = today.fromordinal(today.toordinal() + 90)
+        in_30_days = today.fromordinal(today.toordinal() + 30)
+        qty = Item.current_qty
+        minimum = func.coalesce(Item.min_level, 0.0)
+        reorder_level = func.coalesce(Item.reorder_level, 0.0)
+        stock_status = Item.stock_status
+        summary = db.session.query(
+            func.count(Item.id),
+            func.coalesce(func.sum(case((stock_status == "CRITICAL", 1), else_=0)), 0),
+            func.coalesce(func.sum(case((stock_status == "BELOW MIN", 1), else_=0)), 0),
+            func.coalesce(func.sum(case((stock_status == "REORDER", 1), else_=0)), 0),
+            func.coalesce(func.sum(case((stock_status == "OK", 1), else_=0)), 0),
+            func.coalesce(func.sum(case((Item.expiry_date < today, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((Item.expiry_date.between(today, in_90_days), 1), else_=0)), 0),
+            func.coalesce(func.sum(case((Item.service_due < today, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((Item.service_due.between(today, in_30_days), 1), else_=0)), 0),
+            func.coalesce(func.sum(qty * func.coalesce(Item.unit_value, 0.0)), 0.0),
+        ).filter(Item.is_archived.is_(False)).one()
+        (total_lines, critical, below_min, reorder, ok, expired,
+         near_expiry, service_overdue, service_due_30, total_value) = summary
+        total_value = round(total_value, 2)
+        cat_counts = dict(
+            db.session.query(Item.category, func.count(Item.id))
+            .filter(Item.is_archived.is_(False)).group_by(Item.category).all()
+        )
+        cat_counts = {category: cat_counts.get(category, 0) for category in CATEGORIES}
 
         return render_template(
             "dashboard.html",
@@ -180,10 +214,13 @@ def register_routes(app):
             return redirect(url_for("index"))
 
         show = request.args.get("show", "active")
+        if show not in {"active", "low", "out", "all"}:
+            show = "active"
         area_id = request.args.get("area", type=int)
         q = request.args.get("q", "").strip()
 
-        query = Item.query.options(selectinload(Item.area)).filter_by(category=category, is_archived=False)
+        query = (Item.query.options(selectinload(Item.area), selectinload(Item.transactions))
+                 .filter_by(category=category, is_archived=False))
 
         if area_id:
             query = query.filter_by(area_id=area_id)
@@ -197,33 +234,34 @@ def register_routes(app):
                 Item.location.ilike(like),
             ))
 
-        items = query.order_by(Item.name).all()
-
+        qty = Item.current_qty
         if show == "active":
-            items = [i for i in items if i.current_qty > 0]
+            query = query.filter(qty > 0)
         elif show == "low":
-            items = [i for i in items
-                     if i.current_qty > 0
-                     and i.stock_status in ("CRITICAL", "BELOW MIN", "REORDER")]
+            query = query.filter(qty > 0, Item.stock_status.in_(("CRITICAL", "BELOW MIN", "REORDER")))
         elif show == "out":
-            items = [i for i in items if i.current_qty <= 0]
+            query = query.filter(qty <= 0)
 
-        all_in_cat = Item.query.filter_by(category=category, is_archived=False).all()
-        counts = {
-            "active": sum(1 for i in all_in_cat if i.current_qty > 0),
-            "low": sum(1 for i in all_in_cat
-                       if i.current_qty > 0
-                       and i.stock_status in ("CRITICAL", "BELOW MIN", "REORDER")),
-            "out": sum(1 for i in all_in_cat if i.current_qty <= 0),
-            "all": len(all_in_cat),
-        }
+        counts_row = db.session.query(
+            func.count(Item.id),
+            func.coalesce(func.sum(case((qty > 0, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((db.and_(qty > 0, Item.stock_status.in_(("CRITICAL", "BELOW MIN", "REORDER"))), 1), else_=0)), 0),
+            func.coalesce(func.sum(case((qty <= 0, 1), else_=0)), 0),
+        ).filter(Item.category == category, Item.is_archived.is_(False)).one()
+        counts = {"all": counts_row[0], "active": counts_row[1],
+                  "low": counts_row[2], "out": counts_row[3]}
+        page_obj = query.order_by(Item.name).paginate(
+            page=max(request.args.get("page", 1, type=int), 1),
+            per_page=50, error_out=False,
+        )
 
         areas = Area.query.order_by(Area.sort_order).all()
 
         return render_template(
             "section.html",
             category=category,
-            items=items,
+            items=page_obj.items,
+            page_obj=page_obj,
             show=show,
             area_id=area_id,
             q=q,
@@ -271,18 +309,7 @@ def register_routes(app):
             db.session.add(item)
             db.session.flush()
 
-            if item.opening_qty > 0:
-                db.session.add(Transaction(
-                    item_id=item.id,
-                    trans_date=date.today(),
-                    trans_type="RECEIVE",
-                    qty_in=item.opening_qty,
-                    unit=item.unit,
-                    user_id=current_user.id,
-                    reference_notes="Opening balance",
-                ))
-
-            log_audit("CREATE", "Item", item.id)
+            log_audit("CREATE", "Item", item.id, after=item_snapshot(item))
             db.session.commit()
 
             flash(f"Item {item.inventory_id} created.", "success")
@@ -303,6 +330,11 @@ def register_routes(app):
         ]
 
         if form.validate_on_submit():
+            if (form.opening_qty.data or 0.0) != (item.opening_qty or 0.0):
+                flash("The opening quantity is the starting balance. Record stock changes as movements.", "error")
+                return render_template("item_form.html", form=form,
+                                       category=item.category, item=item)
+            before = item_snapshot(item)
             item.inventory_id = (form.inventory_id.data or "").strip() or item.inventory_id
             item.name = form.name.data.strip()
             item.area_id = form.area_id.data or None
@@ -322,7 +354,7 @@ def register_routes(app):
             item.responsible = form.responsible.data
             item.notes = form.notes.data
 
-            log_audit("UPDATE", "Item", item.id)
+            log_audit("UPDATE", "Item", item.id, before=before, after=item_snapshot(item))
             db.session.commit()
 
             flash("Item updated.", "success")
@@ -344,19 +376,42 @@ def register_routes(app):
     @app.route("/item/<int:item_id>/transaction", methods=["POST"])
     @role_required("admin")
     def item_transaction(item_id):
-        item = Item.query.get_or_404(item_id)
+        item = Item.query.filter_by(id=item_id).with_for_update().first_or_404()
         form = TransactionForm()
 
         if not form.validate_on_submit():
             flash("Please check the form values.", "error")
             return redirect(url_for("item_detail", item_id=item.id))
 
+        qty_in = form.qty_in.data or 0.0
+        qty_out = form.qty_out.data or 0.0
+        inflow_types = {"RECEIVE", "TRANSFER IN", "RETURN", "RELEASE", "ADJUSTMENT IN"}
+        outflow_types = {"ISSUE / USE", "TRANSFER OUT", "QUARANTINE", "DISPOSE", "ADJUSTMENT OUT"}
+
+        expected = "in" if form.trans_type.data in inflow_types else "out"
+        if (expected == "in" and (qty_in <= 0 or qty_out != 0)) or \
+                (expected == "out" and (qty_out <= 0 or qty_in != 0)):
+            flash("Enter a positive quantity in the matching Qty In or Qty Out field only.", "error")
+            return redirect(url_for("item_detail", item_id=item.id))
+
+        if qty_out > item.current_qty:
+            flash(f"Insufficient stock. Only {item.current_qty:g} {item.unit} is available.", "error")
+            return redirect(url_for("item_detail", item_id=item.id))
+
+        if form.unit.data and form.unit.data != item.unit:
+            flash(f"This item is measured in {item.unit}. Use that unit for the movement.", "error")
+            return redirect(url_for("item_detail", item_id=item.id))
+
+        if form.trans_type.data.startswith("ADJUSTMENT") and not (form.reference_notes.data or "").strip():
+            flash("Add a note explaining the reason for this adjustment.", "error")
+            return redirect(url_for("item_detail", item_id=item.id))
+
         tx = Transaction(
             item_id=item.id,
             trans_date=form.trans_date.data or date.today(),
             trans_type=form.trans_type.data,
-            qty_in=form.qty_in.data or 0.0,
-            qty_out=form.qty_out.data or 0.0,
+            qty_in=qty_in,
+            qty_out=qty_out,
             unit=form.unit.data or item.unit,
             from_location=form.from_location.data,
             to_location=form.to_location.data,
@@ -365,20 +420,51 @@ def register_routes(app):
             user_id=current_user.id,
         )
         db.session.add(tx)
-        log_audit("CREATE", "Transaction", None)
+        db.session.flush()
+        log_audit("CREATE", "Transaction", tx.id)
         db.session.commit()
 
         flash(f"Movement recorded for {item.inventory_id}.", "success")
+        return redirect(url_for("item_detail", item_id=item.id))
+
+    @app.route("/item/<int:item_id>/archive", methods=["POST"])
+    @role_required("admin")
+    def item_archive(item_id):
+        item = Item.query.get_or_404(item_id)
+        if item.current_qty > 0:
+            flash("Only out-of-stock items can be archived.", "error")
+            return redirect(url_for("item_detail", item_id=item.id))
+        before = item_snapshot(item)
+        item.is_archived = True
+        log_audit("ARCHIVE", "Item", item.id, before=before, after=item_snapshot(item))
+        db.session.commit()
+        flash(f"{item.inventory_id} moved to the archive.", "success")
+        return redirect(url_for("archived"))
+
+    @app.route("/item/<int:item_id>/restore", methods=["POST"])
+    @role_required("admin")
+    def item_restore(item_id):
+        item = Item.query.get_or_404(item_id)
+        if not item.is_archived:
+            flash("This item is not archived.", "warning")
+            return redirect(url_for("item_detail", item_id=item.id))
+        before = item_snapshot(item)
+        item.is_archived = False
+        log_audit("RESTORE", "Item", item.id, before=before, after=item_snapshot(item))
+        db.session.commit()
+        flash(f"{item.inventory_id} restored to inventory.", "success")
         return redirect(url_for("item_detail", item_id=item.id))
 
     # ----- Archived ----------------------------------------------------------
     @app.route("/archived")
     @login_required
     def archived():
-        items = Item.query.filter_by(is_archived=False).all()
-        out_items = [i for i in items if i.current_qty <= 0]
-        out_items.sort(key=lambda i: (i.category, i.name))
-        return render_template("archived.html", items=out_items)
+        page_obj = (Item.query.options(selectinload(Item.transactions))
+                    .filter_by(is_archived=True)
+                    .order_by(Item.category, Item.name)
+                    .paginate(page=max(request.args.get("page", 1, type=int), 1),
+                              per_page=50, error_out=False))
+        return render_template("archived.html", items=page_obj.items, page_obj=page_obj)
 
     # ----- Transactions log --------------------------------------------------
     @app.route("/transactions")

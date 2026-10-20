@@ -1,5 +1,6 @@
 from functools import wraps
 from datetime import datetime
+from urllib.parse import urljoin, urlparse
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
 
@@ -7,6 +8,16 @@ from models import db, User, AuditLog
 from forms import LoginForm
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _safe_next_url(target):
+    if not target or not target.startswith("/") or target.startswith("//") or "\\" in target:
+        return None
+    base = urlparse(request.host_url)
+    candidate = urlparse(urljoin(request.host_url, target))
+    if candidate.scheme in {"http", "https"} and candidate.netloc == base.netloc:
+        return target
+    return None
 
 
 def role_required(*roles):
@@ -46,7 +57,7 @@ def login():
             user.last_login_at = datetime.utcnow()
             db.session.commit()
             _log(user, "LOGIN", "User", user.id)
-            next_url = request.args.get("next")
+            next_url = _safe_next_url(request.args.get("next"))
             return redirect(next_url or url_for("index"))
         flash("Invalid credentials.", "error")
 

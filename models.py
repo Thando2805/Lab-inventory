@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from sqlalchemy import case, func, select
+from sqlalchemy.ext.hybrid import hybrid_property
 
 db = SQLAlchemy()
 ph = PasswordHasher()
@@ -120,11 +122,19 @@ class Item(db.Model):
     def qty_out(self):
         return sum(t.qty_out or 0 for t in self.transactions)
 
-    @property
+    @hybrid_property
     def current_qty(self):
         return (self.opening_qty or 0) + self.qty_in - self.qty_out
 
-    @property
+    @current_qty.expression
+    def current_qty(cls):
+        qty_in = (select(func.coalesce(func.sum(Transaction.qty_in), 0.0))
+                  .where(Transaction.item_id == cls.id).scalar_subquery())
+        qty_out = (select(func.coalesce(func.sum(Transaction.qty_out), 0.0))
+                   .where(Transaction.item_id == cls.id).scalar_subquery())
+        return func.coalesce(cls.opening_qty, 0.0) + qty_in - qty_out
+
+    @hybrid_property
     def stock_status(self):
         q = self.current_qty
         if q <= (self.min_level or 0):
@@ -132,6 +142,17 @@ class Item(db.Model):
         if q <= (self.reorder_level or 0):
             return "REORDER"
         return "OK"
+
+    @stock_status.expression
+    def stock_status(cls):
+        q = cls.current_qty
+        minimum = func.coalesce(cls.min_level, 0.0)
+        reorder = func.coalesce(cls.reorder_level, 0.0)
+        return case(
+            (q <= minimum, case((cls.critical.is_(True), "CRITICAL"), else_="BELOW MIN")),
+            (q <= reorder, "REORDER"),
+            else_="OK",
+        )
 
     @property
     def days_to_expiry(self):

@@ -8,6 +8,19 @@
     </a>
     <h1 class="text-2xl font-semibold text-slate-900 mt-1">{{ item.name }}</h1>
     <p class="text-slate-500 text-sm font-mono">{{ item.inventory_id }}</p>
+    {% if current_user.role == 'admin' %}
+    {% if item.is_archived %}
+    <form method="post" action="{{ url_for('item_restore', item_id=item.id) }}" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary">Restore to inventory</button>
+    </form>
+    {% elif item.current_qty <= 0 %}
+    <form method="post" action="{{ url_for('item_archive', item_id=item.id) }}" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary">Move to archive</button>
+    </form>
+    {% endif %}
+    {% endif %}
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
