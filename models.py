@@ -2,7 +2,7 @@ from datetime import datetime, date
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -26,9 +26,11 @@ class User(UserMixin, db.Model):
         self.password_hash = ph.hash(raw)
 
     def check_password(self, raw):
+        if not self.password_hash or not raw:
+            return False
         try:
             return ph.verify(self.password_hash, raw)
-        except VerifyMismatchError:
+        except (VerifyMismatchError, InvalidHashError):
             return False
 
     def has_role(self, *roles):

@@ -28,6 +28,11 @@ def create_app(config_overrides=None):
     if config_overrides:
         app.config.update(config_overrides)
 
+    # Log which DB we're on at startup (password redacted)
+    uri = app.config["SQLALCHEMY_DATABASE_URI"]
+    shown = uri.split("@")[-1] if "@" in uri else uri
+    app.logger.info("Database: %s", shown)
+
     db.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)
@@ -165,8 +170,6 @@ def register_routes(app):
         in_90_days = today.fromordinal(today.toordinal() + 90)
         in_30_days = today.fromordinal(today.toordinal() + 30)
         qty = Item.current_qty
-        minimum = func.coalesce(Item.min_level, 0.0)
-        reorder_level = func.coalesce(Item.reorder_level, 0.0)
         stock_status = Item.stock_status
         summary = db.session.query(
             func.count(Item.id),

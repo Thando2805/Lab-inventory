@@ -2,7 +2,7 @@ import os
 import secrets
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 def _env_flag(name, default=False):
@@ -10,17 +10,23 @@ def _env_flag(name, default=False):
     return value in {"1", "true", "yes", "on"}
 
 
+def _normalize_db_url(url):
+    """Convert Neon / Heroku-style URLs to a SQLAlchemy + psycopg URL."""
+    if not url:
+        return "sqlite:///lab_inventory.db"
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
+
+
 class Config:
     DEBUG = _env_flag("FLASK_DEBUG", False)
     ENVIRONMENT = os.environ.get("APP_ENV", "development").strip().lower()
     SECRET_KEY = os.environ.get("SECRET_KEY")
 
-    _db_url = os.environ.get("DATABASE_URL", "sqlite:///lab_inventory.db")
-    if _db_url.startswith("postgres://"):
-        _db_url = _db_url.replace("postgres://", "postgresql+psycopg://", 1)
-    elif _db_url.startswith("postgresql://"):
-        _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
-    SQLALCHEMY_DATABASE_URI = _db_url
+    SQLALCHEMY_DATABASE_URI = _normalize_db_url(os.environ.get("DATABASE_URL"))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
@@ -50,9 +56,10 @@ class Config:
             raise RuntimeError("Production requires a non-default ADMIN_USERNAME.")
         if not ADMIN_PASSWORD or len(ADMIN_PASSWORD) < 16 or ADMIN_PASSWORD == "ChangeMeNow123!":
             raise RuntimeError("Production requires an ADMIN_PASSWORD of at least 16 characters.")
+        if SQLALCHEMY_DATABASE_URI.startswith("sqlite"):
+            raise RuntimeError("Production cannot run on SQLite. Set DATABASE_URL to your Neon URL.")
     elif not SECRET_KEY:
         SECRET_KEY = secrets.token_hex(32)
-        # Local convenience only; production always requires an explicit key.
         os.environ["SECRET_KEY"] = SECRET_KEY
 
     if not ADMIN_PASSWORD:
