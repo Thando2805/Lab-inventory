@@ -68,8 +68,14 @@
 
             <header class="topbar">
                 <!-- Mobile Hamburger Button -->
-                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle menu">
-                    &#9776;
+                <button
+                    class="mobile-menu-btn"
+                    id="mobileMenuBtn"
+                    type="button"
+                    aria-label="Open navigation menu"
+                    aria-controls="sidebar"
+                    aria-expanded="false">
+                    <span aria-hidden="true">&#9776;</span>
                 </button>
 
                 <div class="breadcrumb">
@@ -116,27 +122,59 @@
             if (msg && !window.confirm(msg)) e.preventDefault();
         });
 
-        // Mobile Sidebar Toggle Logic
+        // Accessible mobile sidebar navigation
         const menuBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
 
         if (menuBtn && sidebar && overlay) {
+            const mobileQuery = window.matchMedia('(max-width: 900px)');
+
+            function openMenu() {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+                menuBtn.setAttribute('aria-expanded', 'true');
+                menuBtn.setAttribute('aria-label', 'Close navigation menu');
+                document.body.classList.add('menu-open');
+            }
+
+            function closeMenu() {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+                menuBtn.setAttribute('aria-expanded', 'false');
+                menuBtn.setAttribute('aria-label', 'Open navigation menu');
+                document.body.classList.remove('menu-open');
+            }
+
             function toggleMenu() {
-                sidebar.classList.toggle('active');
-                overlay.classList.toggle('active');
+                if (sidebar.classList.contains('active')) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
             }
 
             menuBtn.addEventListener('click', toggleMenu);
-            overlay.addEventListener('click', toggleMenu);
+            overlay.addEventListener('click', closeMenu);
 
-            // Close sidebar if a link is clicked
+            // Close after selecting a navigation link on mobile.
             sidebar.querySelectorAll('a').forEach(link => {
                 link.addEventListener('click', () => {
-                    if (window.innerWidth <= 900) {
-                        toggleMenu();
-                    }
+                    if (mobileQuery.matches) closeMenu();
                 });
+            });
+
+            // Escape closes the drawer.
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape' && sidebar.classList.contains('active')) {
+                    closeMenu();
+                    menuBtn.focus();
+                }
+            });
+
+            // Reset drawer state when returning to desktop width.
+            mobileQuery.addEventListener('change', event => {
+                if (!event.matches) closeMenu();
             });
         }
     </script>
