@@ -11,9 +11,12 @@
 <body>
 
     {% if current_user.is_authenticated %}
+    <!-- Overlay to close sidebar on mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <div class="app">
 
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="brand">
                 <img src="{{ url_for('static', filename='images/nprdc-sidebar-icon.png') }}" alt="MSU NPRDC Logo"
                     class="brand-mark">
@@ -64,6 +67,11 @@
         <div class="main">
 
             <header class="topbar">
+                <!-- Mobile Hamburger Button -->
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle menu">
+                    &#9776;
+                </button>
+
                 <div class="breadcrumb">
                     <a href="{{ url_for('index') }}">Home</a>
                     {% block breadcrumb %}{% endblock %}
@@ -102,10 +110,35 @@
     {% endif %}
 
     <script>
+        // Confirm dialogue for forms
         document.addEventListener("submit", function (e) {
             const msg = e.target.getAttribute("data-confirm");
             if (msg && !window.confirm(msg)) e.preventDefault();
         });
+
+        // Mobile Sidebar Toggle Logic
+        const menuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+
+        if (menuBtn && sidebar && overlay) {
+            function toggleMenu() {
+                sidebar.classList.toggle('active');
+                overlay.classList.toggle('active');
+            }
+
+            menuBtn.addEventListener('click', toggleMenu);
+            overlay.addEventListener('click', toggleMenu);
+
+            // Close sidebar if a link is clicked
+            sidebar.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', () => {
+                    if (window.innerWidth <= 900) {
+                        toggleMenu();
+                    }
+                });
+            });
+        }
     </script>
 </body>
 
